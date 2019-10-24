@@ -30,9 +30,7 @@ class tfRecord_Processor():
         if '.tfrecord' in file:
           tfrecord = os.path.join(inDir, file)
           outfile = os.path.join(outDir, 'clipped' + file)
-          print('a')
           with tf.python_io.TFRecordWriter(outfile) as tfwriter:
-            print('b')
             # iterate through all examples in tfrecord 
             for example in tf.python_io.tf_record_iterator(tfrecord):
               tf_example = tf.train.SequenceExample.FromString(example)
