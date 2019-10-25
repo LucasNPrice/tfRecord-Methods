@@ -7,19 +7,51 @@ class tfRecord_Processor():
   def __init__(self):
     pass
 
-  def read_raw(self, file, doPrint = False):
-    tfrecords = []
-    for example in tf.python_io.tf_record_iterator(file):
-      tf_example = tf.train.SequenceExample.FromString(example)
-      if doPrint:
-        print(example)
-      else:
-        tfrecords.append(tf_example)
-    if not doPrint:
-      return tfrecords
+  def read_raw(self, files):
+    """ extract .tfrecord data into lists
+        files: list of .tfrecord files to extract 
+    """
+    vid_ids = []
+    labels = []
+    audio = []
+    image = []
+    with tqdm(total = len(files)) as pbar: 
+      for file in files:
+        for example in tf.python_io.tf_record_iterator(file):
+          tf_example = tf.train.SequenceExample.FromString(example)
+          vid_ids.append(tf_example.context.feature['id']
+            .bytes_list.value[0].decode(encoding='UTF-8'))
+          labels.append(tf_example.context.feature['labels'].int64_list.value)
+
+          n_audio_frames = len(tf_example.feature_lists.feature_list['audio'].feature)
+          n_image_frames = len(tf_example.feature_lists.feature_list['rgb'].feature)
+          assert n_audio_frames == n_image_frames
+
+          # will get error using 'eval()' if no session is registered 
+          sess = tf.InteractiveSession()
+          image_frame = []
+          audio_frame = []
+          for i in range(n_audio_frames):
+            audio_frame.append(
+              tf.cast(
+                tf.decode_raw(
+                  tf_example.feature_lists.feature_list['audio'].feature[i].bytes_list.value[0], tf.uint8), 
+                tf.float32).eval()
+              )
+            image_frame.append(
+              tf.cast(
+                tf.decode_raw(
+                  tf_example.feature_lists.feature_list['rgb'].feature[i].bytes_list.value[0], tf.uint8), 
+                tf.float32).eval()
+              )
+          sess.close()
+          audio.append(audio_frame)
+          image.append(image_frame)
+          pbar.update(1)
+    return vid_ids, labels, audio, image
 
   def clip_write_directory(self, inDir, outDir, keep_labels):
-     """ inDir: directory containing .tfrecord files 
+    """ inDir: directory containing .tfrecord files 
          outDir: directory where new .tfrecord files will be saved 
          use for: clip and write each example in each .tfrecord file in 'inDir'
          see clip_write() for rest of detials 
